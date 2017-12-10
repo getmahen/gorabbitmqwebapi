@@ -1,13 +1,16 @@
 package actions
 
 import (
+	"time"
+
 	"github.com/gobuffalo/buffalo"
 	"github.com/gobuffalo/buffalo/middleware"
 	"github.com/gobuffalo/buffalo/middleware/ssl"
 	"github.com/gobuffalo/envy"
 	"github.com/unrolled/secure"
 
-	"rabbitmqwebapp/models"
+	"rabbitmqwebapp/messagebroker"
+	"rabbitmqwebapp/processor"
 
 	"github.com/gobuffalo/x/sessions"
 )
@@ -22,7 +25,7 @@ var app *buffalo.App
 // application.
 func App() *buffalo.App {
 	if app == nil {
-		app = buffalo.Automatic(buffalo.Options{
+		app = buffalo.New(buffalo.Options{
 			Env:          ENV,
 			SessionStore: sessions.Null{},
 			SessionName:  "_rabbitmqwebapp_session",
@@ -43,9 +46,13 @@ func App() *buffalo.App {
 		// Wraps each request in a transaction.
 		//  c.Value("tx").(*pop.PopTransaction)
 		// Remove to disable this.
-		app.Use(middleware.PopTransaction(models.DB))
+		//app.Use(middleware.PopTransaction(models.DB))
 
+		messageBroker := messagebroker.NewMessageBroker("amqp://guest:guest@localhost:5672")
+		processor := processor.NewProcessor(70*time.Second, messageBroker)
 		app.GET("/", HomeHandler)
+		app.GET("/PortRequest", PortRequestHandler(processor))
+		app.GET("/PortCallback", PortCallbackHandler(processor))
 
 	}
 
